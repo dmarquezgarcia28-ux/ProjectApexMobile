@@ -1,0 +1,71 @@
+
+name: Preparar proyecto Godot
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "*.zip"
+
+permissions:
+  contents: read
+
+jobs:
+  preparar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Buscar y extraer proyecto
+        shell: bash
+        run: |
+          set -e
+          mkdir -p proyecto
+
+          encontrado=false
+
+          for zipfile in ./*.zip; do
+            [ -f "$zipfile" ] || continue
+
+            mkdir -p /tmp/prueba-godot
+            rm -rf /tmp/prueba-godot/*
+
+            unzip -oq "$zipfile" -d /tmp/prueba-godot
+
+            if find /tmp/prueba-godot \
+              -type f -name project.godot \
+              | grep -q .; then
+              cp -a /tmp/prueba-godot/. proyecto/
+              echo "ZIP válido: $zipfile"
+              encontrado=true
+              break
+            fi
+          done
+
+          if [ "$encontrado" != true ]; then
+            echo "No se encontró project.godot en los ZIP."
+            exit 1
+          fi
+
+          find proyecto -name project.godot
+
+      - name: Comprobar configuración Android
+        shell: bash
+        run: |
+          if find proyecto -name export_presets.cfg \
+            | grep -q .; then
+            echo "Se encontró una configuración de exportación."
+          else
+            echo "::warning::Falta export_presets.cfg."
+            echo "Todavía hay que configurar la exportación Android."
+          fi
+
+      - name: Guardar proyecto extraído
+        uses: actions/upload-artifact@v4
+        with:
+          name: proyecto-godot-extraido
+          path: proyecto/
+          if-no-files-found: error
+          
